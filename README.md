@@ -1,4 +1,4 @@
-# Palabos (Lattice Boltzmann Method) Demonstration Project
+# Lattice Boltzmann Method
 
 This project provides a demonstration of the Lattice Boltzmann Method (LBM) utilizing the Palabos library for fluid dynamics simulation.
 
