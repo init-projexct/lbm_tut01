@@ -7,7 +7,7 @@ This project provides a demonstration of the Lattice Boltzmann Method (LBM) util
 First, clone the repository to your local machine:
 
 ```bash
-git clone [https://github.com/init-projexct/lbm_tut01](https://github.com/init-projexct/lbm_tut01)
+git clone https://github.com/init-projexct/lbm_tut01
 ```
 
 then run the command
