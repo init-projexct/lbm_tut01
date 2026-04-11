@@ -1,6 +1,7 @@
 ### Palabos / LBM Specific ###
 # Geometry raw files (can be very large)
 *.raw
+*.stl
 
 # Visualization and post-processing outputs
 *.vtk
