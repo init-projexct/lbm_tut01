@@ -19,6 +19,8 @@ mkdir -p build && cd build
 cmake ..
 
 # Compile using all available CPU cores
-make -j$(nproc)
+make -j$(nproc) 2>&1 | tee log.tx
+./main
 ```
 
+Better run it on PC/server due to CPU core temperature can reach as high as 100°C on laptop

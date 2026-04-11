@@ -6,32 +6,41 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(PALABOS_ROOT /home/researchx/apps/palabos)
 
-# Use SYSTEM for libraries to hide their internal warnings
-include_directories(SYSTEM ${PALABOS_ROOT}/src)
-include_directories(SYSTEM ${PALABOS_ROOT}/externalLibraries)
-
-# 1. COLLECT ALL SOURCES
-file(GLOB_RECURSE PALABOS_SOURCES 
-    "${PALABOS_ROOT}/src/*.cpp"
-    "${PALABOS_ROOT}/externalLibraries/*.cpp"
-)
-
-# 2. CREATE EXECUTABLE
-add_executable(main main.cpp ${PALABOS_SOURCES})
-
-# 3. COMPILER OPTIONS - The "Victory" Flags
-target_compile_options(main PRIVATE 
-    -O3 
-    -march=native
-    -fpermissive
-    -Wno-narrowing
-    -Wno-ignored-attributes
-    -Wno-deprecated-enum-enum-conversion
-)
-
-# 4. LINKING
+# Find Dependencies
 find_package(MPI REQUIRED)
-target_link_libraries(main PRIVATE MPI::MPI_CXX)
+find_package(TBB REQUIRED)
 
-# TinyXML Linkage
-target_link_libraries(main PRIVATE tinyxml)
+# Essential Palabos Definitions
+add_definitions(-DPLB_MPI_PARALLEL)
+add_definitions(-DPLB_USE_POSIX)
+add_definitions(-DPLB_USE_CPP20)
+
+# Include Paths - CRITICAL FIX HERE
+include_directories(SYSTEM "${PALABOS_ROOT}/src")
+include_directories(SYSTEM "${PALABOS_ROOT}/externalLibraries")
+include_directories(SYSTEM "${PALABOS_ROOT}/externalLibraries/Eigen3")
+# Tell Palabos where to find mpi.h
+include_directories(SYSTEM ${MPI_CXX_INCLUDE_DIRS}) 
+
+# Collect Sources
+file(GLOB_RECURSE PALABOS_SRC "${PALABOS_ROOT}/src/*.cpp")
+file(GLOB_RECURSE EXT_SRC "${PALABOS_ROOT}/externalLibraries/tinyxml/*.cpp")
+
+# Build Palabos Library
+add_library(palabos STATIC ${PALABOS_SRC} ${EXT_SRC})
+
+# Compiler Flags
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -fpermissive")
+endif()
+
+# Build Executable
+add_executable(test01 test01.cpp)
+
+# Linking sequence
+target_link_libraries(test01 
+    palabos 
+    ${MPI_CXX_LIBRARIES} 
+    TBB::tbb 
+    pthread
+)
