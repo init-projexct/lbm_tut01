@@ -1,12 +1,9 @@
 #include "palabos3D.h"
 #include "palabos3D.hh"
-
-// Core dynamics and IO headers for the April 2026 branch
 #include "basicDynamics/isoThermalDynamics.h"
 #include "basicDynamics/externalForceDynamics.hh" 
 #include "latticeBoltzmann/nearestNeighborLattices3D.hh" 
-#include "io/serializerIO.h"
-#include "io/multiBlockReader3D.h"
+#include <fstream>
 
 using namespace plb;
 
@@ -15,51 +12,60 @@ typedef double T;
 
 int main(int argc, char* argv[]) {
     plbInit(&argc, &argv);
-    
-    // Set output directory for VTK/DAT files
     global::directories().setOutputDir("./tmp/");
 
-    // Grid dimensions (must match your Python res=128)
-    const int nx = 128;
-    const int ny = 128;
-    const int nz = 128;
+    const int nx = 128, ny = 128, nz = 128;
     const T omega = 1.0; 
 
-    // Create the lattice
     MultiBlockLattice3D<T, DESCRIPTOR> lattice(nx, ny, nz, 
         new NaiveExternalForceBGKdynamics<T, DESCRIPTOR>(omega));
 
-    // OPTION A: Using 'unsigned char' to match Python's np.uint8 (1 byte per voxel)
-    MultiScalarField3D<unsigned char> geometry(nx, ny, nz);
+    MultiScalarField3D<int> geometry(nx, ny, nz);
     
-    pcout << "Loading geometry_128.raw (1-byte per voxel)..." << std::endl;
-    
-    // Load the raw binary file directly
-    parallelIO::loadRaw("geometry_128.raw", geometry);
+    pcout << "Loading porous_geometry_128.raw..." << std::endl;
 
-    // Define BounceBack (Solid) where the geometry value is 1
-    // In your Python script: binary_mask = (smoothed > threshold) 
-    // This correctly identifies the solid matrix.
+    if (global::mpi().isMainProcessor()) {
+        std::ifstream inv("porous_geometry_128.raw", std::ios::binary);
+        if(!inv) {
+            pcout << "Error: File not found!" << std::endl;
+            // Simplified exit since .abort() was missing
+            exit(-1);
+        }
+
+        // We use a Box to iterate through the MultiBlock field properly
+        for (int iZ = 0; iZ < nz; ++iZ) {
+            for (int iY = 0; iY < ny; ++iY) {
+                for (int iX = 0; iX < nx; ++iX) {
+                    unsigned char voxelValue;
+                    if(inv.read((char*)&voxelValue, sizeof(unsigned char))) {
+                        // 'get' is actually the correct one for MultiScalarField3D 
+                        // when accessing by global coordinates
+                        geometry.get(iX, iY, iZ) = (int)voxelValue;
+                    }
+                }
+            }
+        }
+        inv.close();
+        pcout << "Rank 0: Read complete." << std::endl;
+    }
+    
+    // This is the magic line that actually sends the data to other cores
+    geometry.initialize(); 
+
+    pcout << "Geometry synced. Applying physics..." << std::endl;
+
     defineDynamics(lattice, geometry, new BounceBack<T, DESCRIPTOR>(), 1);
-
-    // Initialize the fluid at rest
     initializeAtEquilibrium(lattice, lattice.getBoundingBox(), (T)1.0, Array<T,3>((T)0,(T)0,(T)0));
     lattice.initialize();
 
-    pcout << "Starting Porous Media Simulation..." << std::endl;
+    pcout << "Simulation starting..." << std::endl;
 
     for (plint iT = 0; iT < 1000; ++iT) {
         lattice.collideAndStream();
-        
         if (iT % 100 == 0) {
-            // pcout ensures only Rank 0 prints, preventing terminal clutter in MPI
-            pcout << "Step " << iT 
-                  << " | Average Energy: " << getStoredAverageEnergy<T>(lattice) 
-                  << std::endl;
+            pcout << "Step " << iT << " | Energy: " << getStoredAverageEnergy<T>(lattice) << std::endl;
         }
     }
-
-    pcout << "Simulation complete. Check ./tmp/ for results." << std::endl;
 
     return 0;
 }
